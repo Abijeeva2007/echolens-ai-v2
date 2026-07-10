@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 import google.generativeai as genai
+import json
 
 from app.schemas.daily import DailyRequest
 from app.config import settings
@@ -19,34 +20,29 @@ def analyze(request: DailyRequest):
     prompt = f"""
 You are EchoLens AI.
 
-Your purpose is to help users recognize bias,
-persuasion techniques,
-missing perspectives,
-and logical fallacies.
-
-Never tell the user what to believe.
-
-Instead, help them think critically.
-
 Analyze the following content.
 
-Return your answer in Markdown.
+Return ONLY valid JSON.
 
-Include exactly these sections:
+Do NOT use markdown.
+Do NOT use triple backticks.
+Do NOT explain anything outside the JSON.
 
-# Summary
+Return this exact format:
 
-# Main Claim
-
-# Persuasion Techniques
-
-# Possible Biases
-
-# Missing Perspectives
-
-# Questions to Consider
-
-# Fairness Score (out of 10)
+{{
+  "summary": "",
+  "main_claim": "",
+  "persuasion": [],
+  "biases": [],
+  "missing_perspectives": [],
+  "logical_fallacies": [],
+  "emotion": "",
+  "credibility_score": 0,
+  "confidence": 0,
+  "questions": [],
+  "recommendation": ""
+}}
 
 Content:
 
@@ -55,12 +51,30 @@ Content:
 
     try:
         response = model.generate_content(prompt)
-        analysis = response.text
+
+        text = response.text.strip()
+
+        # Gemini sometimes wraps JSON in ```json ... ```
+        if text.startswith("```json"):
+            text = text.replace("```json", "").replace("```", "").strip()
+
+        analysis = json.loads(text)
 
     except Exception as e:
         print(e)
-        analysis = "⚠️ EchoLens AI couldn't analyze this content right now."
 
-    return {
-        "analysis": analysis
-    }
+        analysis = {
+            "summary": "Unable to analyze content.",
+            "main_claim": "",
+            "persuasion": [],
+            "biases": [],
+            "missing_perspectives": [],
+            "logical_fallacies": [],
+            "emotion": "Unknown",
+            "credibility_score": 0,
+            "confidence": 0,
+            "questions": [],
+            "recommendation": "Try again later."
+        }
+
+    return analysis
