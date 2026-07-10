@@ -45,6 +45,9 @@ export type UserProfile = {
   xp: number
   streak: number
 }
+export type DailyAnalysisResponse = {
+  analysis: string
+}
 
 export const api = {
   register(body: { username: string; email: string; password: string }) {
@@ -63,6 +66,13 @@ export const api = {
 
   me(token: string) {
     return request<UserProfile>("/auth/me", {}, token)
+  },
+
+  dailyAnalyze(body: { text: string }) {
+    return request<DailyAnalysisResponse>("/daily/analyze", {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
   },
 }
 

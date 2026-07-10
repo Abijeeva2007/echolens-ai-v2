@@ -1,6 +1,6 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { api } from "@/lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -15,6 +15,23 @@ import {
   Trophy,
   Zap,
   ArrowRight,
+  Target,
+  Smile,
+  HelpCircle,
+  Lightbulb,
+  Globe,
+  Landmark,
+  Users,
+  Leaf,
+  FlaskConical,
+  DollarSign,
+  Heart,
+  Copy,
+  Download,
+  Share2,
+  BarChart3,
+  Activity,
+  Check,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/auth-context";
@@ -30,188 +47,29 @@ import {
 } from "@/components/ui/card";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — mirrors the real backend response for /daily/analyze
 // ---------------------------------------------------------------------------
 
-type Severity = "High" | "Medium" | "Low";
-
-interface BiasEntry {
-  name: string;
-  severity: Severity;
-  description: string;
-  color: string;
-}
-
-interface FallacyEntry {
-  name: string;
-  description: string;
-  example: string;
-}
-
-interface AnalysisResult {
+type AnalysisResult = {
   summary: string;
-  biases: BiasEntry[];
-  fallacies: FallacyEntry[];
-  score: number;
-  scoreLabel: string;
-  scoreDescription: string;
-}
-
-interface Preset {
-  label: string;
-  icon: string;
-  text: string;
-  results: AnalysisResult;
-}
-
-// ---------------------------------------------------------------------------
-// Presets for the demo
-// ---------------------------------------------------------------------------
-
-const PRESETS: Preset[] = [
-  {
-    label: "Social Media Echo",
-    icon: "📱",
-    text: "Honestly, everyone is switching to this new decentralized social platform. If you're still on the legacy apps, you obviously don't care about privacy or freedom. The mainstream media is completely silent about it, which proves they're trying to censor us!",
-    results: {
-      summary:
-        "The author asserts that switching to a new decentralized social network is the only option for those who value privacy and freedom. They argue that legacy apps are compromised and claim mainstream media silence is direct evidence of active censorship.",
-      biases: [
-        {
-          name: "Outgroup Homogeneity Bias",
-          severity: "High",
-          description:
-            "Generalizes all users of legacy platforms as indifferent to privacy rights, overlooking diverse reasons for staying (network effects, accessibility).",
-          color: "bg-rose-500/10 text-rose-300 border-rose-500/30",
-        },
-        {
-          name: "Conspiracy / Intentionality Bias",
-          severity: "Medium",
-          description:
-            "Attributes the media's lack of coverage to deliberate censorship and malice, rather than typical editorial prioritization or lack of general public interest.",
-          color: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-        },
-      ],
-      fallacies: [
-        {
-          name: "False Dilemma (Either/Or)",
-          description:
-            "Presents a binary choice: either transition to the new decentralized platform, or have no concern for personal privacy/freedom. It ignores alternative solutions.",
-          example: "\"If you're still on legacy apps, you obviously don't care about privacy.\"",
-        },
-        {
-          name: "Appeal to Ignorance",
-          description:
-            "Uses a lack of coverage or evidence as proof of a positive claim (deliberate censorship).",
-          example: "\"The mainstream media is completely silent, which proves they're trying to censor us.\"",
-        },
-        {
-          name: "Bandwagon Fallacy",
-          description:
-            "Implies the platform is superior or correct simply because a large number of people are switching to it.",
-          example: "\"Everyone is switching to this new decentralized social platform.\"",
-        },
-      ],
-      score: 28,
-      scoreLabel: "Highly Polarized",
-      scoreDescription:
-        "This text contains significant emotional appeals, high polarization, and lacks alternative viewpoints.",
-    },
-  },
-  {
-    label: "Corporate Tech Hype",
-    icon: "🚀",
-    text: "AI is completely revolutionizing every single aspect of humanity. Companies that do not integrate generative AI into their core operations immediately are guaranteed to go bankrupt within the next twelve months. We either embrace this future fully now, or get left in the dust of history.",
-    results: {
-      summary:
-        "The author claims that Artificial Intelligence is an all-encompassing force that will reshape humanity. They predict immediate bankruptcy for any business that does not adopt generative AI tools within a year, framing the situation as an urgent binary survival crisis.",
-      biases: [
-        {
-          name: "Optimism / Hype Bias",
-          severity: "High",
-          description:
-            "Overestimates the immediate utility, ease of implementation, and universal success of a new technology while ignoring structural costs and regulatory barriers.",
-          color: "bg-rose-500/10 text-rose-300 border-rose-500/30",
-        },
-        {
-          name: "Hyperbole & Alarmism",
-          severity: "Medium",
-          description:
-            "Creates an artificial sense of urgency using extreme timelines (12 months) and outcomes (guaranteed bankruptcy) to drive compliance.",
-          color: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-        },
-      ],
-      fallacies: [
-        {
-          name: "False Dilemma",
-          description:
-            "Forces a choice between full, immediate adoption and absolute failure, skipping gradual integration, testing, or industry-specific nuances.",
-          example: "\"We either embrace this future fully now, or get left in the dust of history.\"",
-        },
-        {
-          name: "Slippery Slope",
-          description:
-            "Assumes that lacking immediate AI integration will inevitably and quickly trigger complete corporate collapse.",
-          example: "\"Companies that do not integrate... are guaranteed to go bankrupt within twelve months.\"",
-        },
-      ],
-      score: 42,
-      scoreLabel: "Hyperbolic / Low Nuance",
-      scoreDescription:
-        "Strong technological determinism. The statement lacks nuance regarding operational friction and industry-specific realities.",
-    },
-  },
-  {
-    label: "Political News Framing",
-    icon: "⚖️",
-    text: "A new economic report shows employment has risen by 2%, proving our administration's policies are a resounding success. The opposition's criticisms are just desperate attempts to hide this historic progress from the public.",
-    results: {
-      summary:
-        "The statement presents a 2% rise in employment as absolute proof that the administration's policies are working. It discredits the political opposition's criticism as a dishonest, desperate attempt to cover up positive results.",
-      biases: [
-        {
-          name: "Confirmation Bias (Cherry-Picking)",
-          severity: "Medium",
-          description:
-            "Singles out a positive metric (2% employment rise) while omitting inflation, wage stagnation, debt, or other indicators to paint an exclusively positive picture.",
-          color: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-        },
-        {
-          name: "In-group Favoritism",
-          severity: "High",
-          description:
-            "Frames the administration as a source of historic progress and the opposition as bad-faith actors with malicious or weak motivations.",
-          color: "bg-rose-500/10 text-rose-300 border-rose-500/30",
-        },
-      ],
-      fallacies: [
-        {
-          name: "Post Hoc Ergo Propter Hoc",
-          description:
-            "Assumes that because employment rose during their term, the administration's specific policies were the direct and sole driver of that rise.",
-          example: "\"employment has risen by 2%, proving our administration's policies are a resounding success.\"",
-        },
-        {
-          name: "Ad Hominem (Attack on Motive)",
-          description:
-            "Attacks the opposition's political intentions and character rather than addressing the substance of their economic arguments.",
-          example: "\"The opposition's criticisms are just desperate attempts to hide this...\"",
-        },
-      ],
-      score: 35,
-      scoreLabel: "Partisan Framing",
-      scoreDescription:
-        "Single-perspective claim with partisan attribution. Avoids examining systemic global market factors or other domestic indicators.",
-    },
-  },
-];
+  main_claim: string;
+  persuasion: string[];
+  biases: string[];
+  missing_perspectives: string[];
+  logical_fallacies: string[];
+  emotion: string;
+  credibility_score: number;
+  confidence: number;
+  questions: string[];
+  recommendation: string;
+};
 
 const LOADING_STEPS = [
-  { label: "Parsing language & semantic structure", icon: Brain },
-  { label: "Detecting persuasion patterns", icon: Sparkles },
-  { label: "Scanning for cognitive biases", icon: AlertTriangle },
+  { label: "🧠 Reading content...", icon: Brain },
+  { label: "Detecting persuasion", icon: Sparkles },
   { label: "Finding logical fallacies", icon: Scale },
-  { label: "Calculating perspective score", icon: TrendingUp },
+  { label: "Measuring credibility", icon: BarChart3 },
+  { label: "Generating recommendations", icon: Lightbulb },
 ];
 
 const STEP_DURATION = 650;
@@ -321,11 +179,48 @@ function ConfettiBurst({ show }: { show: boolean }) {
   );
 }
 
+// Animated count-up number, used anywhere a real metric needs to tick up.
+function AnimatedNumber({
+  value,
+  duration = 1.2,
+  suffix = "",
+}: {
+  value: number;
+  duration?: number;
+  suffix?: string;
+}) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    let frame: number;
+    let start: number | null = null;
+    const target = Number.isFinite(value) ? value : 0;
+
+    const step = (ts: number) => {
+      if (start === null) start = ts;
+      const progress = Math.min((ts - start) / (duration * 1000), 1);
+      setDisplay(Math.round(progress * target));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+
+  return (
+    <>
+      {display}
+      {suffix}
+    </>
+  );
+}
+
 function ScoreGauge({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, score));
   const radius = 58;
   const circumference = 2 * Math.PI * radius;
   const color =
-    score >= 70 ? "#34d399" : score >= 45 ? "#fbbf24" : "#fb7185";
+    clamped >= 70 ? "#34d399" : clamped >= 45 ? "#fbbf24" : "#fb7185";
 
   return (
     <div className="relative flex h-40 w-40 shrink-0 items-center justify-center">
@@ -348,28 +243,89 @@ function ScoreGauge({ score }: { score: number }) {
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{
-            strokeDashoffset: circumference * (1 - score / 100),
+            strokeDashoffset: circumference * (1 - clamped / 100),
           }}
           transition={{ duration: 1.2, ease: "easeOut" }}
           style={{ filter: `drop-shadow(0 0 8px ${color}80)` }}
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <motion.span
-          key={score}
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="text-4xl font-bold text-white"
-        >
-          {score}
-        </motion.span>
+        <span className="text-4xl font-bold text-white">
+          <AnimatedNumber value={clamped} />
+        </span>
         <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
           / 100
         </span>
       </div>
     </div>
   );
+}
+
+function ConfidenceBar({ confidence }: { confidence: number }) {
+  // Backend may return confidence as 0-1 or 0-100; normalize to a percentage.
+  const pct = Math.max(
+    0,
+    Math.min(100, confidence <= 1 ? Math.round(confidence * 100) : Math.round(confidence))
+  );
+  const color =
+    pct >= 70 ? "from-emerald-500 to-emerald-300" : pct >= 40 ? "from-amber-500 to-amber-300" : "from-rose-500 to-rose-300";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-white/70">Model Confidence</span>
+        <span className="font-bold text-white">
+          <AnimatedNumber value={pct} suffix="%" />
+        </span>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+        <motion.div
+          className={`h-full rounded-full bg-gradient-to-r ${color}`}
+          initial={{ width: "0%" }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Emotion → visual language mapping
+const EMOTION_STYLES: Record<
+  string,
+  { classes: string; icon: string }
+> = {
+  positive: { classes: "border-emerald-400/40 bg-emerald-500/10 text-emerald-200", icon: "🙂" },
+  neutral: { classes: "border-slate-400/40 bg-slate-500/10 text-slate-200", icon: "😐" },
+  fear: { classes: "border-violet-400/40 bg-violet-500/10 text-violet-200", icon: "😨" },
+  anger: { classes: "border-rose-400/40 bg-rose-500/10 text-rose-200", icon: "😠" },
+  hope: { classes: "border-cyan-400/40 bg-cyan-500/10 text-cyan-200", icon: "🌤" },
+  confusion: { classes: "border-amber-400/40 bg-amber-500/10 text-amber-200", icon: "😕" },
+};
+
+function getEmotionStyle(emotion: string) {
+  const key = emotion?.trim().toLowerCase();
+  return (
+    EMOTION_STYLES[key] ?? {
+      classes: "border-indigo-400/40 bg-indigo-500/10 text-indigo-200",
+      icon: "✨",
+    }
+  );
+}
+
+// Missing-perspective label → icon mapping
+const PERSPECTIVE_ICONS: { match: RegExp; icon: typeof Landmark; color: string }[] = [
+  { match: /govern|polic|state|regulat/i, icon: Landmark, color: "text-indigo-300" },
+  { match: /citizen|public|community|people/i, icon: Users, color: "text-cyan-300" },
+  { match: /econom|financ|market|cost/i, icon: DollarSign, color: "text-emerald-300" },
+  { match: /environ|climate|ecolog/i, icon: Leaf, color: "text-lime-300" },
+  { match: /ethic|moral/i, icon: Heart, color: "text-rose-300" },
+  { match: /scien|research|data|technical/i, icon: FlaskConical, color: "text-fuchsia-300" },
+];
+
+function getPerspectiveIcon(label: string) {
+  const found = PERSPECTIVE_ICONS.find((p) => p.match.test(label));
+  return found ?? { icon: Globe, color: "text-white/60" };
 }
 
 // ---------------------------------------------------------------------------
@@ -384,9 +340,12 @@ export default function DailyPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showXp, setShowXp] = useState(false);
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -421,6 +380,12 @@ export default function DailyPage() {
     return () => clearTimeout(timeout);
   }, [showConfetti]);
 
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timeout = setTimeout(() => setCopyState("idle"), 2000);
+    return () => clearTimeout(timeout);
+  }, [copyState]);
+
   if (authLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#05060a] text-sm text-white/50">
@@ -431,70 +396,144 @@ export default function DailyPage() {
 
   if (!user) return null;
 
-  const handlePresetSelect = (presetLabel: string, presetText: string) => {
-    setActivePreset(presetLabel);
-    setText(presetText);
-    setResults(null);
-  };
-
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!text.trim()) return;
+
     setIsAnalyzing(true);
     setResults(null);
+    setError(null);
 
-    const matchedPreset = PRESETS.find(
-      (p) => p.text.substring(0, 30) === text.substring(0, 30)
-    );
+    try {
+      const response = (await api.dailyAnalyze({
+        text,
+      })) as AnalysisResult;
 
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      if (matchedPreset) {
-        setResults(matchedPreset.results);
-      } else {
-        const charCount = text.length;
-        const score = Math.max(15, Math.min(95, Math.round((charCount % 60) + 30)));
-        setResults({
-          summary: `This custom input of ${charCount} characters discusses arguments that require critical analysis. The text presents claims with selective focus and outlines a particular viewpoint.`,
-          biases: [
-            {
-              name: "Framing Bias",
-              severity: "Medium",
-              description:
-                "The information is presented in a way that guides the reader toward a specific emotional conclusion rather than an objective analysis of options.",
-              color: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-            },
-            {
-              name: "Confirmation Bias",
-              severity: "Low",
-              description:
-                "The claims leverage supportive scenarios while skipping counterarguments or balancing structural details.",
-              color: "bg-sky-500/10 text-sky-300 border-sky-500/30",
-            },
-          ],
-          fallacies: [
-            {
-              name: "Unwarranted Generalization",
-              description:
-                "Draws a general conclusion based on limited or non-representative evidence.",
-              example: text.substring(0, Math.min(text.length, 60)) + "...",
-            },
-          ],
-          score,
-          scoreLabel:
-            score > 70 ? "Objective & Nuanced" : score > 40 ? "Moderately Biased" : "One-Sided / Biased",
-          scoreDescription: `Analysis scores this text ${score}/100. It shows a primary viewpoint with minor balance. Introducing alternative lenses would improve perspective diversity.`,
-        });
-      }
+      setResults(response);
       setShowConfetti(true);
       setShowXp(true);
-    }, LOADING_STEPS.length * STEP_DURATION + 150);
+    } catch (err) {
+      console.error(err);
+      setError("Analysis failed. Please try again in a moment.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleReset = () => {
     setText("");
     setResults(null);
-    setActivePreset(null);
+    setError(null);
   };
+
+  const handleAnalyzeAgain = () => {
+    setResults(null);
+    setError(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
+  const buildReportText = (r: AnalysisResult) => {
+    return [
+      "EchoLens AI — Critical Analysis Report",
+      "========================================",
+      "",
+      "SUMMARY",
+      r.summary || "—",
+      "",
+      "MAIN CLAIM",
+      r.main_claim || "—",
+      "",
+      "EMOTIONAL TONE",
+      r.emotion || "—",
+      "",
+      "PERSUASION TECHNIQUES",
+      r.persuasion?.length ? r.persuasion.map((p) => `• ${p}`).join("\n") : "None detected",
+      "",
+      "COGNITIVE BIASES",
+      r.biases?.length ? r.biases.map((b) => `• ${b}`).join("\n") : "None detected",
+      "",
+      "LOGICAL FALLACIES",
+      r.logical_fallacies?.length
+        ? r.logical_fallacies.map((f) => `• ${f}`).join("\n")
+        : "None detected",
+      "",
+      "MISSING PERSPECTIVES",
+      r.missing_perspectives?.length
+        ? r.missing_perspectives.map((m) => `• ${m}`).join("\n")
+        : "None flagged",
+      "",
+      `CREDIBILITY SCORE: ${r.credibility_score}/100`,
+      `AI CONFIDENCE: ${r.confidence <= 1 ? Math.round(r.confidence * 100) : Math.round(r.confidence)}%`,
+      "",
+      "CRITICAL THINKING QUESTIONS",
+      r.questions?.length ? r.questions.map((q, i) => `${i + 1}. ${q}`).join("\n") : "—",
+      "",
+      "RECOMMENDATION",
+      r.recommendation || "—",
+    ].join("\n");
+  };
+
+  const handleCopyReport = async () => {
+    if (!results) return;
+    try {
+      await navigator.clipboard.writeText(buildReportText(results));
+      setCopyState("copied");
+    } catch (err) {
+      console.error(err);
+      alert("Could not copy report to clipboard.");
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!results) return;
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+    const reportText = buildReportText(results).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    win.document.write(`
+      <html>
+        <head>
+          <title>EchoLens Analysis Report</title>
+          <style>
+            body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; padding: 40px; color: #111; white-space: pre-wrap; line-height: 1.6; }
+            h1 { font-size: 20px; }
+          </style>
+        </head>
+        <body>${reportText}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  const handleShare = async () => {
+    if (!results) return;
+    const reportText = buildReportText(results);
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "EchoLens AI — Analysis Report",
+          text: reportText,
+        });
+      } catch (err) {
+        // user cancelled share sheet — no-op
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(reportText);
+        alert("Sharing isn't supported on this browser — report copied to clipboard instead.");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const emotionStyle = results ? getEmotionStyle(results.emotion) : null;
 
   return (
     <AppShell>
@@ -542,7 +581,7 @@ export default function DailyPage() {
               </Badge>
               <Badge className="gap-1.5 border-cyan-400/30 bg-cyan-500/10 text-cyan-200">
                 <Brain className="size-3" />
-                18 Bias Models
+                Bias & Fallacy Detection
               </Badge>
             </div>
 
@@ -554,7 +593,7 @@ export default function DailyPage() {
             <p className="mx-auto max-w-2xl text-sm leading-relaxed text-white/50 sm:mx-0 sm:text-base">
               Paste any article, opinion, social post, or argument. EchoLens dissects its
               logical structure, surfaces latent biases, flags fallacies, and measures
-              perspective balance in seconds.
+              credibility in seconds.
             </p>
           </motion.section>
 
@@ -568,47 +607,34 @@ export default function DailyPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg text-white">Input Text to Analyze</CardTitle>
                 <CardDescription className="text-xs text-white/40">
-                  Select a quick preset example to see it in action, or type your own.
+                  Paste an article, post, or argument and EchoLens will break it down.
                 </CardDescription>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {PRESETS.map((p) => {
-                    const active = activePreset === p.label;
-                    return (
-                      <motion.button
-                        key={p.label}
-                        type="button"
-                        whileHover={{ y: -2 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => handlePresetSelect(p.label, p.text)}
-                        className={`group relative flex items-center gap-1.5 overflow-hidden rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
-                          active
-                            ? "border-indigo-400/50 bg-indigo-500/15 text-indigo-100"
-                            : "border-white/10 bg-white/[0.03] text-white/60 hover:border-indigo-400/30 hover:bg-indigo-500/10 hover:text-white"
-                        }`}
-                      >
-                        <span>{p.icon}</span>
-                        <span>{p.label}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
                   <textarea
+                    ref={textareaRef}
                     className="min-h-[160px] w-full resize-y rounded-xl border border-white/10 bg-black/30 p-4 font-sans text-sm leading-relaxed text-white placeholder:text-white/30 transition-all focus:border-indigo-400/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                     placeholder="Paste argument, news paragraph, or social commentary here..."
                     value={text}
-                    onChange={(e) => {
-                      setText(e.target.value);
-                      setActivePreset(null);
-                    }}
+                    onChange={(e) => setText(e.target.value)}
                     disabled={isAnalyzing}
                   />
                   <span className="pointer-events-none absolute bottom-3 right-4 text-[11px] font-medium text-white/25">
                     {text.length} characters
                   </span>
                 </div>
+
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
+                  >
+                    {error}
+                  </motion.p>
+                )}
+
                 <div className="flex flex-wrap justify-end gap-3">
                   {text && (
                     <Button
@@ -696,7 +722,11 @@ export default function DailyPage() {
                           </div>
                           <span
                             className={`text-sm ${
-                              done ? "text-white/50 line-through decoration-white/20" : current ? "font-medium text-white" : "text-white/35"
+                              done
+                                ? "text-white/50 line-through decoration-white/20"
+                                : current
+                                ? "font-medium text-white"
+                                : "text-white/35"
                             }`}
                           >
                             {step.label}
@@ -739,7 +769,7 @@ export default function DailyPage() {
                 </div>
 
                 <div className="grid gap-5 md:grid-cols-2">
-                  {/* Summary */}
+                  {/* Summary — hero card */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -750,20 +780,40 @@ export default function DailyPage() {
                       <CardHeader className="pb-2">
                         <div className="flex items-center gap-2">
                           <FileText className="size-4.5 text-indigo-300" />
-                          <CardTitle className="text-md text-white">
-                            Deconstructed Summary
-                          </CardTitle>
+                          <CardTitle className="text-md text-white">📰 Summary</CardTitle>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <p className="font-sans text-sm leading-relaxed text-white/70">
-                          {results.summary}
+                          {results.summary || "No summary was returned for this text."}
                         </p>
                       </CardContent>
                     </Card>
                   </motion.div>
 
-                  {/* Biases */}
+                  {/* Main Claim — large highlighted card */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                    className="md:col-span-2"
+                  >
+                    <Card className="overflow-hidden border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 via-white/[0.04] to-transparent backdrop-blur-xl">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Target className="size-4.5 text-cyan-300" />
+                          <CardTitle className="text-md text-white">🎯 Main Claim</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-lg font-semibold leading-relaxed text-white">
+                          {results.main_claim || "No central claim was identified."}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Emotional Tone — animated chip */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -772,41 +822,48 @@ export default function DailyPage() {
                     <Card className="flex h-full flex-col border-white/10 bg-white/[0.04] backdrop-blur-xl transition-transform hover:-translate-y-0.5">
                       <CardHeader className="pb-2">
                         <div className="flex items-center gap-2">
-                          <AlertTriangle className="size-4.5 text-orange-300" />
-                          <CardTitle className="text-md text-white">
-                            Cognitive Biases Detected
-                          </CardTitle>
+                          <Smile className="size-4.5 text-amber-300" />
+                          <CardTitle className="text-md text-white">😊 Emotional Tone</CardTitle>
                         </div>
-                        <CardDescription className="text-xs text-white/40">
-                          Internal lenses warping objective representation.
-                        </CardDescription>
                       </CardHeader>
-                      <CardContent className="flex-1 space-y-3">
-                        {results.biases.map((bias, idx) => (
-                          <div
-                            key={idx}
-                            className="space-y-1.5 rounded-lg border border-white/10 bg-black/20 p-3"
+                      <CardContent className="flex flex-1 items-center">
+                        {emotionStyle && (
+                          <motion.span
+                            initial={{ opacity: 0, scale: 0.7 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${emotionStyle.classes}`}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-white">
-                                {bias.name}
-                              </span>
-                              <span
-                                className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold ${bias.color}`}
-                              >
-                                {bias.severity} Severity
-                              </span>
-                            </div>
-                            <p className="text-xs leading-relaxed text-white/50">
-                              {bias.description}
-                            </p>
-                          </div>
-                        ))}
+                            <span className="text-base">{emotionStyle.icon}</span>
+                            {results.emotion || "Unspecified"}
+                          </motion.span>
+                        )}
                       </CardContent>
                     </Card>
                   </motion.div>
 
-                  {/* Fallacies */}
+                  {/* AI Confidence — horizontal progress bar */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.2 }}
+                  >
+                    <Card className="flex h-full flex-col border-white/10 bg-white/[0.04] backdrop-blur-xl transition-transform hover:-translate-y-0.5">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Activity className="size-4.5 text-cyan-300" />
+                          <CardTitle className="text-md text-white">🤖 AI Confidence</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex flex-1 items-center">
+                        <div className="w-full">
+                          <ConfidenceBar confidence={results.confidence} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Persuasion Techniques — animated badges */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -815,71 +872,319 @@ export default function DailyPage() {
                     <Card className="flex h-full flex-col border-white/10 bg-white/[0.04] backdrop-blur-xl transition-transform hover:-translate-y-0.5">
                       <CardHeader className="pb-2">
                         <div className="flex items-center gap-2">
-                          <Scale className="size-4.5 text-fuchsia-300" />
+                          <Sparkles className="size-4.5 text-indigo-300" />
                           <CardTitle className="text-md text-white">
-                            Logical Fallacies Flagged
+                            🧠 Persuasion Techniques
                           </CardTitle>
                         </div>
                         <CardDescription className="text-xs text-white/40">
-                          Flaws in reasoning that invalidate the argument.
+                          Rhetorical devices used to steer the reader.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="flex-1 space-y-3">
-                        {results.fallacies.map((fal, idx) => (
-                          <div
-                            key={idx}
-                            className="space-y-1.5 rounded-md border border-white/10 bg-black/20 p-2.5 text-xs"
-                          >
-                            <span className="font-bold text-fuchsia-300">{fal.name}</span>
-                            <p className="leading-snug text-white/50">{fal.description}</p>
-                            <p className="rounded bg-white/5 p-1.5 text-[11px] italic leading-normal text-white/60">
-                              {fal.example}
-                            </p>
+                      <CardContent className="flex-1">
+                        {results.persuasion?.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {results.persuasion.map((p, idx) => (
+                              <motion.span
+                                key={`${p}-${idx}`}
+                                initial={{ opacity: 0, scale: 0.6 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.3, delay: 0.05 * idx }}
+                                className="rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-200"
+                              >
+                                {p}
+                              </motion.span>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="text-xs text-white/40">No persuasion techniques detected.</p>
+                        )}
                       </CardContent>
                     </Card>
                   </motion.div>
 
-                  {/* Perspective Score */}
+                  {/* Cognitive Biases — animated badges */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                  >
+                    <Card className="flex h-full flex-col border-white/10 bg-white/[0.04] backdrop-blur-xl transition-transform hover:-translate-y-0.5">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Brain className="size-4.5 text-fuchsia-300" />
+                          <CardTitle className="text-md text-white">🧭 Cognitive Biases</CardTitle>
+                        </div>
+                        <CardDescription className="text-xs text-white/40">
+                          Mental shortcuts warping objective framing.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex-1">
+                        {results.biases?.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {results.biases.map((b, idx) => (
+                              <motion.span
+                                key={`${b}-${idx}`}
+                                initial={{ opacity: 0, scale: 0.6 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.3, delay: 0.05 * idx }}
+                                className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-1 text-xs font-medium text-fuchsia-200"
+                              >
+                                {b}
+                              </motion.span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-white/40">No cognitive biases detected.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Logical Fallacies — warning cards */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.35 }}
                     className="md:col-span-2"
                   >
+                    <Card className="border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="size-4.5 text-rose-300" />
+                          <CardTitle className="text-md text-white">
+                            ⚠ Logical Fallacies
+                          </CardTitle>
+                        </div>
+                        <CardDescription className="text-xs text-white/40">
+                          Flaws in reasoning that undermine the argument.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {results.logical_fallacies?.length ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {results.logical_fallacies.map((f, idx) => (
+                              <motion.div
+                                key={`${f}-${idx}`}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.3, delay: 0.06 * idx }}
+                                className="flex items-start gap-2 rounded-lg border border-rose-400/20 bg-rose-500/5 p-3"
+                              >
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-300" />
+                                <span className="text-sm leading-relaxed text-white/70">{f}</span>
+                              </motion.div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-white/40">No logical fallacies detected.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Missing Perspectives — timeline cards */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.4 }}
+                    className="md:col-span-2"
+                  >
+                    <Card className="border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Globe className="size-4.5 text-sky-300" />
+                          <CardTitle className="text-md text-white">
+                            🌍 Missing Perspectives
+                          </CardTitle>
+                        </div>
+                        <CardDescription className="text-xs text-white/40">
+                          Viewpoints this text leaves out of the conversation.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {results.missing_perspectives?.length ? (
+                          <div className="relative space-y-4 pl-6">
+                            <div className="absolute bottom-1 left-[9px] top-1 w-px bg-white/10" />
+                            {results.missing_perspectives.map((m, idx) => {
+                              const { icon: Icon, color } = getPerspectiveIcon(m);
+                              return (
+                                <motion.div
+                                  key={`${m}-${idx}`}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ duration: 0.3, delay: 0.07 * idx }}
+                                  className="relative flex items-start gap-3"
+                                >
+                                  <div className="absolute -left-6 flex h-[19px] w-[19px] items-center justify-center rounded-full border border-white/15 bg-[#0b0d14]">
+                                    <Icon className={`size-3 ${color}`} />
+                                  </div>
+                                  <p className="text-sm leading-relaxed text-white/70">{m}</p>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-white/40">No missing perspectives flagged.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Credibility Score — circular gauge */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.45 }}
+                    className="md:col-span-2"
+                  >
                     <Card className="flex flex-col items-center gap-6 overflow-hidden border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl sm:flex-row">
-                      <ScoreGauge score={results.score} />
+                      <ScoreGauge score={results.credibility_score} />
 
                       <div className="flex-1 space-y-2 text-center sm:text-left">
                         <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                          <span className="text-lg font-bold text-white">
-                            {results.scoreLabel}
-                          </span>
+                          <BarChart3 className="size-4 text-white/50" />
+                          <span className="text-lg font-bold text-white">📊 Credibility Score</span>
                           <Badge
                             className={
-                              results.score > 60
+                              results.credibility_score >= 70
                                 ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
-                                : "border-white/15 bg-white/5 text-white/50"
+                                : results.credibility_score >= 45
+                                ? "border-amber-400/30 bg-amber-500/10 text-amber-300"
+                                : "border-rose-400/30 bg-rose-500/10 text-rose-300"
                             }
                           >
-                            {results.score > 60 ? "Balanced" : "Low Perspective Integration"}
+                            {results.credibility_score >= 70
+                              ? "High Credibility"
+                              : results.credibility_score >= 45
+                              ? "Moderate Credibility"
+                              : "Low Credibility"}
                           </Badge>
                         </div>
                         <p className="text-sm leading-relaxed text-white/50">
-                          {results.scoreDescription}
+                          This score reflects the overall trustworthiness of the source text based
+                          on detected bias, fallacies, and perspective balance.
                         </p>
-                        <div className="flex items-center justify-center gap-2 pt-2 text-xs font-semibold text-cyan-300 sm:justify-start">
-                          <TrendingUp className="size-3.5" />
-                          <span>
-                            Advice: Try simulating opposing perspectives on this text in
-                            Simulation Mode.
-                          </span>
-                        </div>
                       </div>
                     </Card>
                   </motion.div>
+
+                  {/* Critical Thinking Questions — numbered cards */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.5 }}
+                    className="md:col-span-2"
+                  >
+                    <Card className="border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="size-4.5 text-cyan-300" />
+                          <CardTitle className="text-md text-white">
+                            💡 Critical Thinking Questions
+                          </CardTitle>
+                        </div>
+                        <CardDescription className="text-xs text-white/40">
+                          Questions to probe the argument further.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {results.questions?.length ? (
+                          <div className="space-y-3">
+                            {results.questions.map((q, idx) => (
+                              <motion.div
+                                key={`${q}-${idx}`}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, delay: 0.06 * idx }}
+                                className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-3"
+                              >
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-cyan-400 text-xs font-bold text-white">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-sm leading-relaxed text-white/70">{q}</p>
+                              </motion.div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-white/40">No follow-up questions generated.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Recommendation — gradient premium card */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.55 }}
+                    className="md:col-span-2"
+                  >
+                    <Card className="overflow-hidden border-transparent bg-gradient-to-br from-indigo-500/20 via-fuchsia-500/10 to-cyan-500/20 backdrop-blur-xl">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2">
+                          <Lightbulb className="size-4.5 text-amber-300" />
+                          <CardTitle className="text-md text-white">✨ Recommendation</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm font-medium leading-relaxed text-white/90">
+                          {results.recommendation || "No recommendation was returned."}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 </div>
+
+                {/* Action buttons */}
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.6 }}
+                  className="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-5"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyReport}
+                    className="cursor-pointer gap-1.5 text-white/60 hover:bg-white/5 hover:text-white"
+                  >
+                    {copyState === "copied" ? (
+                      <Check className="size-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                    {copyState === "copied" ? "Copied" : "Copy Report"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDownloadPdf}
+                    className="cursor-pointer gap-1.5 text-white/60 hover:bg-white/5 hover:text-white"
+                  >
+                    <Download className="size-3.5" />
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleShare}
+                    className="cursor-pointer gap-1.5 text-white/60 hover:bg-white/5 hover:text-white"
+                  >
+                    <Share2 className="size-3.5" />
+                    Share Analysis
+                  </Button>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      size="sm"
+                      onClick={handleAnalyzeAgain}
+                      className="cursor-pointer gap-1.5 bg-gradient-to-r from-indigo-500 to-cyan-500 font-medium text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-400 hover:to-cyan-400"
+                    >
+                      <RotateCcw className="size-3.5" />
+                      Analyze Again
+                    </Button>
+                  </motion.div>
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
