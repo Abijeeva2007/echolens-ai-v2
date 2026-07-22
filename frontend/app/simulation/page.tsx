@@ -188,99 +188,58 @@ export default function SimulationPage() {
     setShowReflection(false);
   };
 
-  const handleSimulate = () => {
-    if (!topic.trim() || selectedLenses.length < 2) return;
-    setIsSimulating(true);
-    setSimulationState("loading");
-    setMessages([]);
-    setShowReflection(false);
+  const handleSimulate = async () => {
+  if (!topic.trim()) return;
 
-    setTimeout(() => {
-      setSimulationState("running");
-      setIsSimulating(false);
+  setMessages([]);
+  setSimulationState("loading");
+  setShowReflection(false);
 
-      // Find if we have a preset conversation
-      const presetKey = Object.keys(PRESET_CONVERSATIONS).find(
-        (key) => key.toLowerCase() === topic.trim().toLowerCase()
-      );
+  try {
+    const res = await fetch(
+      "http://127.0.0.1:8000/simulation/debate",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          topic,
+        }),
+      }
+    );
 
-      let dialogueList: any[] = [];
+    const data = await res.json();
 
-      if (presetKey) {
-        // Filter dialogue to only include messages from selected lenses
-        dialogueList = PRESET_CONVERSATIONS[presetKey].dialogue.filter((msg) =>
-          selectedLenses.includes(msg.lensId)
-        );
+    setSimulationState("running");
 
-        // If filtering leaves too few messages, use the full preset dialogue
-        if (dialogueList.length < 2) {
-          dialogueList = PRESET_CONVERSATIONS[presetKey].dialogue;
-        }
-      } else {
-        // Generate custom dynamic dialogue
-        dialogueList = selectedLenses.map((lensId, index) => {
-          const lensInfo = LENSES.find((l) => l.id === lensId);
-          let messageText = "";
+    let index = 0;
 
-          if (lensId === "tech_optimist") {
-            messageText = `Regarding '${topic}', we have to prioritize efficiency, innovation, and scalability. Market forces and automation will naturally drive solutions faster than regulation ever could. We should create tools to optimize this process.`;
-          } else if (lensId === "environmentalist") {
-            messageText = `We must look at the long-term ecological footprint of '${topic}'. We cannot let short-term gains jeopardize our natural habitats or climate. We need strict guardrails and sustainability targets.`;
-          } else if (lensId === "genz_activist") {
-            messageText = `The most important aspect of '${topic}' is equity and historical power dynamics. We have to ask who gets marginalized by this, and ensure that marginalized groups are leading the conversation and gaining ownership.`;
-          } else {
-            messageText = `With '${topic}', we should proceed with caution and respect institutional stability. Sudden disruptions often cause unintended consequences. Gradual integration within existing structures is key.`;
-          }
-
-          return {
-            lensId,
-            text: messageText,
-          };
-        });
-
-        // Add a second round of responses to simulate debate
-        const roundTwo = selectedLenses.map((lensId, index) => {
-          const lensInfo = LENSES.find((l) => l.id === lensId);
-          let messageText = "";
-
-          if (lensId === "tech_optimist") {
-            messageText = `Pessimistic barriers and heavy regulations only cripple progress. If we don't build and lead in this space, other global competitors will. Innovation is the ultimate form of adaptation.`;
-          } else if (lensId === "environmentalist") {
-            messageText = `Adaptation is meaningless if the fundamental system collapses. We must recognize planetary boundaries. No level of technology can substitute for a stable, liveable biosphere.`;
-          } else if (lensId === "genz_activist") {
-            messageText = `We cannot just talk about 'progress' without addressing current inequality. Tech solutions that enrich a few billionaires while leaving working people behind is not progress—it's exploitation.`;
-          } else {
-            messageText = `Stability is the foundation of any progress. Radical changes without public consensus create severe social friction. We need step-by-step frameworks that protect communities.`;
-          }
-
-          return {
-            lensId,
-            text: messageText,
-          };
-        });
-
-        dialogueList = [...dialogueList, ...roundTwo];
+    const interval = setInterval(() => {
+      if (index >= data.participants.length) {
+        clearInterval(interval);
+        setSimulationState("completed");
+        return;
       }
 
-      // Stream messages sequentially to make it interactive
-      let currentIdx = 0;
-      const interval = setInterval(() => {
-        if (currentIdx < dialogueList.length) {
-          const nextMessage = dialogueList[currentIdx];
+      setMessages((prev) => [
+        ...prev,
+        {
+          lensId: data.participants[index].name,
+          text: data.participants[index].message,
+          emoji: data.participants[index].emoji,
+        },
+      ]);
 
-if (nextMessage) {
-  setMessages((prev) => [...prev, nextMessage]);
-}
+      index++;
+    }, 1200);
 
-currentIdx++;
-          currentIdx++;
-        } else {
-          clearInterval(interval);
-          setSimulationState("completed");
-        }
-      }, 1500);
-    }, 1500);
-  };
+    (window as any).reflection = data.reflection;
+
+  } catch (err) {
+    console.log(err);
+  }
+};
 
   const handleReflect = () => {
     setIsReflecting(true);
@@ -459,9 +418,14 @@ currentIdx++;
                 {messages.map((msg, idx) => {
                   if (!msg || !msg.lensId) return null;
 
-                   const lensInfo = LENSES.find(
-  (l) => l.id === msg?.lensId
-);
+                   <div className="size-8 rounded-lg flex items-center justify-center">
+    {msg.emoji}
+</div>
+
+<div>
+    <h3>{msg.lensId}</h3>
+    <p>{msg.text}</p>
+</div>
 
                    if (!lensInfo) return null;
                   return (
