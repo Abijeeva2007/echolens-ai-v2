@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.routers.simulation import router as simulation_router
 from app.config import settings
 from app.database import Base, engine
 from app.models.analysis import Analysis
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(daily_router)
+app.include_router(simulation_router)
 @app.get("/")
 def root():
     return {"message": "🚀 Welcome to EchoLens AI API"}
