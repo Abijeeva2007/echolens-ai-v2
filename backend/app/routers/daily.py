@@ -5,6 +5,11 @@ import json
 from app.schemas.daily import DailyRequest
 from app.config import settings
 
+print("========== DAILY ==========")
+print("Gemini key loaded:", bool(settings.GEMINI_API_KEY))
+print("Gemini key prefix:", settings.GEMINI_API_KEY[:10])
+print("===========================")
+
 genai.configure(api_key=settings.GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
 
