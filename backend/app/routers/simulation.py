@@ -73,9 +73,7 @@ Each perspective must have:
 - description
 - response
 
-After all viewpoints finish,
-
-produce
+After all viewpoints finish produce:
 
 - tension
 - common_ground
@@ -85,72 +83,62 @@ Return ONLY valid JSON.
 
 Format:
 
-{
+{{
   "perspectives":[
-    {
-      "id":"...",
-      "name":"...",
-      "emoji":"...",
-      "description":"...",
-      "response":"..."
-    }
+    {{
+      "id":"",
+      "name":"",
+      "emoji":"",
+      "description":"",
+      "response":""
+    }}
   ],
-  "reflection":{
-      "tension":"...",
-      "common_ground":"...",
-      "synthesis":"..."
-  }
-}
+  "reflection":{{
+      "tension":"",
+      "common_ground":"",
+      "synthesis":""
+  }}
+}}
 """
 
     try:
-
         response = model.generate_content(prompt)
 
         text = response.text
-
-        text = text.replace("```json","").replace("```","")
+        text = text.replace("```json", "").replace("```", "")
 
         data = json.loads(text)
 
-try:
-    response = model.generate_content(prompt)
+        participants = []
 
-    text = response.text
-    text = text.replace("```json", "").replace("```", "")
+        for p in data["perspectives"]:
+            participants.append({
+                "lensId": p["id"],
+                "name": p["name"],
+                "emoji": p["emoji"],
+                "description": p["description"],
+                "message": p["response"]
+            })
 
-    data = json.loads(text)
-
-    participants = []
-
-    for p in data["perspectives"]:
-        participants.append({
-            "lensId": p["id"],
-            "name": p["name"],
-            "emoji": p["emoji"],
-            "description": p["description"],
-            "message": p["response"]
-        })
-
-    return {
-        "participants": participants,
-        "reflection": data["reflection"]
-    }
-
-except Exception as e:
-    return {
-        "participants": [
-            {
-                "lensId": "error",
-                "name": "EchoLens",
-                "emoji": "🤖",
-                "description": "Simulation Error",
-                "message": str(e)
-            }
-        ],
-        "reflection": {
-            "tension": "",
-            "common_ground": "",
-            "synthesis": ""
+        return {
+            "participants": participants,
+            "reflection": data["reflection"]
         }
-    }
+
+    except Exception as e:
+        return {
+            "participants": [
+                {
+                    "lensId": "error",
+                    "name": "EchoLens",
+                    "emoji": "🤖",
+                    "description": "Simulation Error",
+                    "message": str(e)
+                }
+            ],
+            "reflection": {
+                "tension": "",
+                "common_ground": "",
+                "synthesis": ""
+            }
+        }
