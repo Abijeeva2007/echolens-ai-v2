@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 import google.generativeai as genai
 import json
+import traceback
 
 from app.schemas.daily import DailyRequest
 from app.config import settings
@@ -11,6 +12,7 @@ print("Gemini key prefix:", settings.GEMINI_API_KEY[:10])
 print("===========================")
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
+
 model = genai.GenerativeModel("gemini-2.0-flash")
 
 router = APIRouter(
@@ -59,34 +61,32 @@ Content:
 
         text = response.text.strip()
 
-        # Gemini sometimes wraps JSON in ```json ... ```
         if text.startswith("```json"):
             text = text.replace("```json", "").replace("```", "").strip()
 
         analysis = json.loads(text)
 
+        return analysis
+
     except Exception as e:
-       import traceback
 
-    print("=" * 60)
-    print("GEMINI ERROR")
-    print("Type:", type(e))
-    print("Message:", str(e))
-    traceback.print_exc()
-    print("=" * 60)
+        print("\n" + "=" * 60)
+        print("GEMINI ERROR")
+        print("Type:", type(e))
+        print("Message:", str(e))
+        traceback.print_exc()
+        print("=" * 60 + "\n")
 
-    analysis = {
-        "summary": "Unable to analyze content.",
-        "main_claim": "",
-        "persuasion": [],
-        "biases": [],
-        "missing_perspectives": [],
-        "logical_fallacies": [],
-        "emotion": "Unknown",
-        "credibility_score": 0,
-        "confidence": 0,
-        "questions": [],
-        "recommendation": "Try again later."
-    }
-
-    return analysis
+        return {
+            "summary": "Unable to analyze content.",
+            "main_claim": "",
+            "persuasion": [],
+            "biases": [],
+            "missing_perspectives": [],
+            "logical_fallacies": [],
+            "emotion": "Unknown",
+            "credibility_score": 0,
+            "confidence": 0,
+            "questions": [],
+            "recommendation": "Try again later."
+        }
