@@ -197,7 +197,7 @@ export default function SimulationPage() {
 
   try {
     const res = await fetch(
-      "http://127.0.0.1:8000/simulation/debate",
+      "https://echolens-api-v2.onrender.com/simulation/debate",
       {
         method: "POST",
         headers: {
