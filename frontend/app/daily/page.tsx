@@ -404,9 +404,9 @@ export default function DailyPage() {
     setError(null);
 
     try {
-      const response = (await api.dailyAnalyze({
-        text,
-      })) as AnalysisResult;
+      const response = await api.dailyAnalyze({
+  text,
+}) as unknown as AnalysisResult;
 
       setResults(response);
       setShowConfetti(true);

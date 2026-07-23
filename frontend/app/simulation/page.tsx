@@ -416,40 +416,29 @@ export default function SimulationPage() {
                 )}
 
                 {messages.map((msg, idx) => {
-                  if (!msg || !msg.lensId) return null;
 
-                   <div className="size-8 rounded-lg flex items-center justify-center">
-    {msg.emoji}
-</div>
+    const lensInfo = {
+        name: msg.name,
+        emoji: msg.emoji,
+        description: msg.description
+    };
 
-<div>
-    <h3>{msg.lensId}</h3>
-    <p>{msg.text}</p>
-</div>
+    if (!lensInfo) return null;
 
-                   if (!lensInfo) return null;
-                  return (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex items-start gap-3"
-                    >
-                      <div className="size-8 rounded-lg flex items-center justify-center text-lg bg-card border border-border/85 shadow-sm shrink-0">
-                        {lensInfo?.emoji}
-                      </div>
-                      <div className="space-y-1 bg-card p-3 rounded-lg border border-border/80 shadow-sm max-w-[85%]">
-                        <span className="text-[11px] font-bold text-primary block leading-none">
-                          {lensInfo?.name}
-                        </span>
-                        <p className="text-xs text-foreground/90 leading-relaxed font-sans">
-                          {msg.text}
-                        </p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+    return (
+        <motion.div key={idx}>
+            <div>
+                {lensInfo.emoji}
+            </div>
+
+            <div>
+                <h3>{lensInfo.name}</h3>
+                <p>{msg.text}</p>
+            </div>
+        </motion.div>
+    );
+
+})}
 
                 {simulationState === "running" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground p-3 pl-12 font-medium">
