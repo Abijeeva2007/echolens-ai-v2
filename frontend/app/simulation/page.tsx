@@ -126,20 +126,24 @@ const PRESET_CONVERSATIONS: Record<string, { dialogue: any[]; reflection: any }>
   },
 };
 
+const DEBATE_API_URL = "https://echolens-api-v2.onrender.com/simulation/debate";
+
 export default function SimulationPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [selectedLenses, setSelectedLenses] = useState<string[]>(["tech_optimist", "genz_activist"]);
   const [topic, setTopic] = useState("");
-  const [isSimulating, setIsSimulating] = useState(false);
   const [simulationState, setSimulationState] = useState<"idle" | "loading" | "running" | "completed">("idle");
   const [messages, setMessages] = useState<any[]>([]);
-  
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const [showReflection, setShowReflection] = useState(false);
   const [isReflecting, setIsReflecting] = useState(false);
+  const [reflectionData, setReflectionData] = useState<any>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -150,7 +154,14 @@ export default function SimulationPage() {
   // Scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isSimulating]);
+  }, [messages, simulationState]);
+
+  // Clean up any running interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   if (authLoading) {
     return (
@@ -176,70 +187,111 @@ export default function SimulationPage() {
       }
     }
     // Reset conversation if settings change
-    setSimulationState("idle");
-    setMessages([]);
-    setShowReflection(false);
+    resetSimulation();
   };
 
   const handlePresetClick = (preset: string) => {
     setTopic(preset);
+    resetSimulation();
+  };
+
+  const resetSimulation = () => {
     setSimulationState("idle");
     setMessages([]);
     setShowReflection(false);
+    setReflectionData(null);
+    setErrorMessage(null);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
   };
 
   const handleSimulate = async () => {
-  if (!topic.trim()) return;
+    if (!topic.trim()) return;
 
-  setMessages([]);
-  setSimulationState("loading");
-  setShowReflection(false);
+    // Clear any prior run
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
-  try {
-    const res = await fetch(
-      "https://echolens-api-v2.onrender.com/simulation/debate",
-      {
+    setMessages([]);
+    setErrorMessage(null);
+    setShowReflection(false);
+    setReflectionData(null);
+    setSimulationState("loading");
+
+    try {
+      const res = await fetch(DEBATE_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           topic,
+          lenses: selectedLenses, // pass selected lenses to the backend
         }),
-      }
-    );
+      });
 
-    const data = await res.json();
-
-    setSimulationState("running");
-
-    let index = 0;
-
-    const interval = setInterval(() => {
-      if (index >= data.participants.length) {
-        clearInterval(interval);
-        setSimulationState("completed");
-        return;
+      if (!res.ok) {
+        throw new Error(`Debate API responded with status ${res.status}`);
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          lensId: data.participants[index].name,
-          text: data.participants[index].message,
-          emoji: data.participants[index].emoji,
-        },
-      ]);
+      const data = await res.json();
 
-      index++;
-    }, 1200);
+      // Defensive check: bail out cleanly if shape is unexpected
+      if (!data || !Array.isArray(data.participants) || data.participants.length === 0) {
+        throw new Error("Debate API returned an unexpected response shape.");
+      }
 
-    (window as any).reflection = data.reflection;
+      setSimulationState("running");
 
-  } catch (err) {
-    console.log(err);
-  }
-};
+      let index = 0;
+
+      intervalRef.current = setInterval(() => {
+        if (index >= data.participants.length) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          setSimulationState("completed");
+          return;
+        }
+
+        const participant = data.participants[index];
+
+        if (!participant) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          setSimulationState("completed");
+          return;
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            lensId: participant.lensId,
+            name: participant.name ?? "Unknown Perspective",
+            emoji: participant.emoji ?? "💬",
+            description: participant.description ?? "",
+            text: participant.message ?? "",
+          },
+        ]);
+
+        index++;
+      }, 1200);
+
+      // Store reflection in React state instead of a global
+      setReflectionData(data.reflection ?? null);
+    } catch (err: any) {
+      console.error("Simulation failed:", err);
+      setSimulationState("idle");
+      setErrorMessage(
+        err?.message?.includes("Failed to fetch")
+          ? "Couldn't reach the simulation server. Check your connection and try again."
+          : "Something went wrong running the simulation. Please try again."
+      );
+    }
+  };
 
   const handleReflect = () => {
     setIsReflecting(true);
@@ -252,6 +304,16 @@ export default function SimulationPage() {
 
   // Get reflection content
   const getReflectionData = () => {
+    // First use the API-generated reflection (from React state, not window)
+    if (reflectionData) {
+      return {
+        tension: reflectionData.tension ?? "",
+        commonGround: reflectionData.common_ground ?? "",
+        synthesis: reflectionData.synthesis ?? "",
+      };
+    }
+
+    // Otherwise use preset reflections
     const presetKey = Object.keys(PRESET_CONVERSATIONS).find(
       (key) => key.toLowerCase() === topic.trim().toLowerCase()
     );
@@ -260,12 +322,11 @@ export default function SimulationPage() {
       return PRESET_CONVERSATIONS[presetKey].reflection;
     }
 
-    // Dynamic fallback reflection
-    const lensNames = selectedLenses.map((id) => LENSES.find((l) => l.id === id)?.name || "");
+    // Final fallback
     return {
-      tension: `Clash between the core assumptions of ${lensNames.join(" and ")} regarding '${topic}'. Specifically, balancing market speed and innovation against regulatory safety, community equity, and environmental conservation.`,
-      commonGround: `Both viewpoints agree that '${topic}' is a high-stakes issue that cannot be ignored and requires proactive structural decisions.`,
-      synthesis: `A multi-perspective approach recommends creating a collaborative pilot program that tests fast technology-driven solutions under strict, equitable safety guidelines designed by environmental and community advocates.`,
+      tension: "",
+      commonGround: "",
+      synthesis: "",
     };
   };
 
@@ -370,6 +431,13 @@ export default function SimulationPage() {
                 </div>
               </div>
 
+              {errorMessage && (
+                <div className="flex items-start gap-1.5 text-[11px] text-red-500 bg-red-500/5 border border-red-500/20 rounded-md p-2">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
               <Button
                 onClick={handleSimulate}
                 disabled={!topic.trim() || selectedLenses.length < 2 || simulationState === "running" || simulationState === "loading"}
@@ -415,30 +483,30 @@ export default function SimulationPage() {
                   </div>
                 )}
 
-                {messages.map((msg, idx) => {
+                {messages.map((msg, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-3"
+                  >
+                    <div className="text-2xl">
+                      {msg.emoji}
+                    </div>
 
-    const lensInfo = {
-        name: msg.name,
-        emoji: msg.emoji,
-        description: msg.description
-    };
+                    <div className="flex-1 rounded-lg border p-4 bg-card">
+                      <h3 className="font-semibold">
+                        {msg.name}
+                      </h3>
 
-    if (!lensInfo) return null;
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {msg.description}
+                      </p>
 
-    return (
-        <motion.div key={idx}>
-            <div>
-                {lensInfo.emoji}
-            </div>
-
-            <div>
-                <h3>{lensInfo.name}</h3>
-                <p>{msg.text}</p>
-            </div>
-        </motion.div>
-    );
-
-})}
+                      <p>{msg.text}</p>
+                    </div>
+                  </motion.div>
+                ))}
 
                 {simulationState === "running" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground p-3 pl-12 font-medium">
