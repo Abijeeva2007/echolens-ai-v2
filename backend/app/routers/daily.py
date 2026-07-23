@@ -66,7 +66,7 @@ Content:
         analysis = json.loads(text)
 
     except Exception as e:
-    import traceback
+       import traceback
 
     print("=" * 60)
     print("GEMINI ERROR")
