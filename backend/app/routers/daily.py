@@ -66,20 +66,27 @@ Content:
         analysis = json.loads(text)
 
     except Exception as e:
-        print(e)
+    import traceback
 
-        analysis = {
-            "summary": "Unable to analyze content.",
-            "main_claim": "",
-            "persuasion": [],
-            "biases": [],
-            "missing_perspectives": [],
-            "logical_fallacies": [],
-            "emotion": "Unknown",
-            "credibility_score": 0,
-            "confidence": 0,
-            "questions": [],
-            "recommendation": "Try again later."
-        }
+    print("=" * 60)
+    print("GEMINI ERROR")
+    print("Type:", type(e))
+    print("Message:", str(e))
+    traceback.print_exc()
+    print("=" * 60)
+
+    analysis = {
+        "summary": "Unable to analyze content.",
+        "main_claim": "",
+        "persuasion": [],
+        "biases": [],
+        "missing_perspectives": [],
+        "logical_fallacies": [],
+        "emotion": "Unknown",
+        "credibility_score": 0,
+        "confidence": 0,
+        "questions": [],
+        "recommendation": "Try again later."
+    }
 
     return analysis
