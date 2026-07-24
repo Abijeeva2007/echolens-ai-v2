@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 import google.generativeai as genai
 import json
-
+import traceback
 from app.config import settings
 
-from app.config import settings
+
 
 print("======= SIMULATION ========")
 print("Gemini key loaded:", bool(settings.GEMINI_API_KEY))
@@ -110,6 +110,12 @@ Format:
     try:
         response = model.generate_content(prompt)
 
+        print("========== GEMINI RESPONSE ==========")
+        print(response)
+        print("===============================")
+
+        print(response.text)
+
         text = response.text
         text = text.replace("```json", "").replace("```", "")
 
@@ -132,19 +138,21 @@ Format:
         }
 
     except Exception as e:
+        traceback.print_exc()
+
         return {
             "participants": [
                 {
                     "lensId": "error",
                     "name": "EchoLens",
                     "emoji": "🤖",
-                    "description": "Simulation Error",
-                    "message": str(e)
+                    "description": type(e).__name__,
+                    "message": str(e),
                 }
             ],
             "reflection": {
                 "tension": "",
                 "common_ground": "",
-                "synthesis": ""
-            }
+                "synthesis": "",
+            },
         }
